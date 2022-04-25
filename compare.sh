@@ -45,10 +45,10 @@ pixelCountCS=$(./a.out $imageName seq >&1)
 durationCS=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
 results+=([$durationCS, $pixelCountCS])
 
-# start=$SECONDS
-# pixelCountCP=$(./a.out $imageName par >&1)
-# durationCP=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
-# results+=([$durationCP, $pixelCountCP])
+start=$SECONDS
+pixelCountCP=$(./a.out $imageName par >&1)
+durationCP=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
+results+=([$durationCP, $pixelCountCP])
 
 start=$SECONDS
 pixelCountPS=$($pythonCom py_cuda/line_detection.py $imageName seq >&1)
@@ -56,9 +56,9 @@ pixelCountPS=$($pythonCom py_cuda/line_detection.py $imageName seq >&1)
 durationPS=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
 results+=([$durationPS, $pixelCountPS])
 
-# start=$SECONDS
-# pixelCountPP=$($pythonCom line_detection.py $imageName par >&1)
-# durationPP=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
-# results+=([$durationPP, $pixelCountPP])
+start=$SECONDS
+pixelCountPP=$($pythonCom py_cuda/line_detection.py $imageName par >&1)
+durationPP=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
+results+=([$durationPP, $pixelCountPP])
 
 echo ${results[@]}

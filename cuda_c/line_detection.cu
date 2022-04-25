@@ -39,39 +39,37 @@ int main(int argc, char *argv[])
     {
 
         int imgWidth, imgHeight, imgBitDepth, imgSize;
-        bool imgIsColor;
+        bool imgIsColor, useGPU=false;
         unsigned char imgHeader[BMP_HEADER_SIZE];
         unsigned char imgColorTable[BMP_COLOR_TABLE_SIZE];
         unsigned char *imgInBuffer = NULL;
         unsigned char *imgOutBuffer = NULL;
+        char *image_out_file = image_seq;
+
+        if (strcmp(argv[2], "par") == 0) { 
+            useGPU = true; 
+            image_out_file = image_par;
+        }
 
         ImageProcessing *new_image = new ImageProcessing(image_main,
-                                                         image_seq,
+                                                         image_out_file,
                                                          &imgHeight,
                                                          &imgWidth,
                                                          &imgBitDepth,
                                                          &imgSize,
                                                          &imgIsColor,
+                                                         &useGPU,
                                                          &imgHeader[0],
                                                          &imgColorTable[0],
                                                          &imgInBuffer,
                                                          &imgOutBuffer);
 
         new_image->readImage();
+
         if (imgIsColor)
             errorExit(3);
 
-        if (strcmp(argv[2], "seq") == 0)
-        {
-            new_image->detectLinesSeq(1);
-        }
-        else
-        {
-            // new_image->detectLinesPar(1);
-            cout << "finish c parallel" << endl;
-            cout << imgSize << endl;
-            exit(0);
-        }
+        new_image->detectLines(1);
 
         new_image->writeImage();
         cout << imgSize << endl;
