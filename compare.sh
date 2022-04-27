@@ -1,6 +1,4 @@
 #!/bin/bash
-# ./compare.sh -i images/houses.bmp -p python3
-# source py_img/bin/activate
 # TODO: verify requirements installed,
 # Ptyhon 3.8, CUDA 11.2
 
@@ -32,33 +30,67 @@ then
     resultsFile="results.txt"
 fi
 
-# verify appropriate arguments
-# echo file: $imageName
-# echo results: $resultsFile
-# echo pythonCom: $pythonCom
+echo "image file: $imageName, python: $pythonCom, results file: $resultsFile"
 
-results=()
+threadCount=(8 16 32 64 128)
+blockCount=(8 16 32 64 128)
+treadArrLength=${#threadCount[@]}
+blockArrLength=${#blockCount[@]}
 
-nvcc cuda_c/line_detection.cu
-start=$SECONDS
-pixelCountCS=$(./a.out $imageName seq >&1)
-durationCS=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
-results+=([$durationCS, $pixelCountCS])
+declare -A results
+resPos=1
 
-start=$SECONDS
-pixelCountCP=$(./a.out $imageName par >&1)
-durationCP=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
-results+=([$durationCP, $pixelCountCP])
+# echo "Running C Sequential"
+# nvcc cuda_c/line_detection.cu
+# results[$resPos,1]=0
+# results[$resPos,2]=0
+# results[$resPos,3]=$(./a.out $imageName seq >&1)
+# results[$resPos,4]=0
+# results[$resPos,5]=NA
 
-start=$SECONDS
-pixelCountPS=$($pythonCom py_cuda/line_detection.py $imageName seq >&1)
-# durationPS=$(printf %.10f $(( 10**10 * SECONDS - start ))e-10 >&1)
-durationPS=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
-results+=([$durationPS, $pixelCountPS])
+# echo "Running C CUDA"
+# for t in ${threadCount[@]}; do
+#   nvcc cuda_c/line_detection.cu -DNUM_THREADS=$t
+#   ((resPos+=1))
+#   tempPos=1
+  
+#   IFS=';' read -ra TEMP <<< "$(./a.out $imageName par >&1)"
+#   for i in "${TEMP[@]}"; do
+#     results[$resPos,$tempPos]=$i
+#     ((tempPos+=1))
+#   done
+# done
 
-start=$SECONDS
-pixelCountPP=$($pythonCom py_cuda/line_detection.py $imageName par >&1)
-durationPP=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
-results+=([$durationPP, $pixelCountPP])
+# echo "Running Python Sequential"
+# results[$resPos,1]=0
+# results[$resPos,2]=0
+# results[$resPos,3]=$($pythonCom py_cuda/line_detection.py $imageName seq >&1)
+# results[$resPos,4]=0
+# results[$resPos,5]=NA
 
-echo ${results[@]}
+echo "Running Python CUDA (Numba)"
+for t in ${threadCount[@]}; do
+  ((resPos+=1))
+  tempPos=1
+  
+  IFS=';' read -ra TEMP <<< "$($pythonCom py_cuda/line_detection.py $imageName par $t >&1)"
+  for i in "${TEMP[@]}"; do
+    results[$resPos,$tempPos]=$i
+    ((tempPos+=1))
+  done
+done
+
+# blocks, threads, PixelsPerMSTotalTime, PixelsPerMSTotalTimeGPUTime, PixelsPerMSTimeDif
+
+for ((j=1;j<=resPos;j++)) do
+    printf "${results[$j,1]}, ${results[$j,2]}, ${results[$j,3]}, ${results[$j,4]}, ${results[$j,5]}"
+    echo
+done
+
+
+# # start=$SECONDS
+# # pixelCountPP=$($pythonCom py_cuda/line_detection.py $imageName par >&1)
+# # durationPP=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
+# # results+=([$durationPP, $pixelCountPP])
+
+

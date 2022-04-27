@@ -7,9 +7,9 @@
 // #include <string.h>
 #include <unistd.h>
 #include "ImageProcessing.cuh"
-// #include "cuda_runtime.h"
-// #include "device_launch_parameters.h"
-// #include "cuda.h"
+#ifndef NUM_THREADS
+#define NUM_THREADS		8
+#endif
 
 using namespace std;
 
@@ -68,11 +68,13 @@ int main(int argc, char *argv[])
 
         if (imgIsColor)
             errorExit(3);
+        if (useGPU)
+            new_image->detectLines(1, NUM_THREADS);
+        else
+            new_image->detectLines(1);
 
-        new_image->detectLines(1);
 
-        new_image->writeImage();
-        cout << imgSize << endl;
+        // new_image->writeImage();
 
         deleteEverything(2, imgInBuffer, imgOutBuffer);
     }
@@ -111,8 +113,6 @@ void deleteEverything(int count, ...)
     for (j = 0; j < count; j++)
     {
         delete[] va_arg(list, char *);
-        // char *temp = va_arg(list, char *);
-        // *temp = 0;
     }
 
     va_end(list);
@@ -137,16 +137,16 @@ void errorExit(int err)
     switch (err)
     {
     case 1:
-        cerr << "Unable to continue due to missing image or results filename\n";
+        fprintf( stderr, "Unable to continue due to missing image or results filename\n" );
         break;
     case 2:
-        cerr << "Unable to open the requested image\n";
+        fprintf( stderr, "Unable to open the requested image\n" );
         break;
     case 3:
-        cerr << "Unable to process RGB images\n";
+        fprintf( stderr, "Unable to process RGB images\n" );
         break;
     default:
-        cerr << "An error occured\n";
+        fprintf( stderr, "An error occured\n" );
         break;
     }
 
