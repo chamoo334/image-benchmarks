@@ -40,33 +40,33 @@ blockArrLength=${#blockCount[@]}
 declare -A results
 resPos=1
 
-# echo "Running C Sequential"
-# nvcc cuda_c/line_detection.cu
-# results[$resPos,1]=0
-# results[$resPos,2]=0
-# results[$resPos,3]=$(./a.out $imageName seq >&1)
-# results[$resPos,4]=0
-# results[$resPos,5]=NA
+echo "Running C Sequential"
+nvcc cuda_c/line_detection.cu
+results[$resPos,1]=0
+results[$resPos,2]=0
+results[$resPos,3]=$(./a.out $imageName seq >&1)
+results[$resPos,4]=0
+results[$resPos,5]=NA
 
-# echo "Running C CUDA"
-# for t in ${threadCount[@]}; do
-#   nvcc cuda_c/line_detection.cu -DNUM_THREADS=$t
-#   ((resPos+=1))
-#   tempPos=1
+echo "Running C CUDA"
+for t in ${threadCount[@]}; do
+  nvcc cuda_c/line_detection.cu -DNUM_THREADS=$t
+  ((resPos+=1))
+  tempPos=1
   
-#   IFS=';' read -ra TEMP <<< "$(./a.out $imageName par >&1)"
-#   for i in "${TEMP[@]}"; do
-#     results[$resPos,$tempPos]=$i
-#     ((tempPos+=1))
-#   done
-# done
+  IFS=';' read -ra TEMP <<< "$(./a.out $imageName par >&1)"
+  for i in "${TEMP[@]}"; do
+    results[$resPos,$tempPos]=$i
+    ((tempPos+=1))
+  done
+done
 
-# echo "Running Python Sequential"
-# results[$resPos,1]=0
-# results[$resPos,2]=0
-# results[$resPos,3]=$($pythonCom py_cuda/line_detection.py $imageName seq >&1)
-# results[$resPos,4]=0
-# results[$resPos,5]=NA
+echo "Running Python Sequential"
+results[$resPos,1]=0
+results[$resPos,2]=0
+results[$resPos,3]=$($pythonCom py_cuda/line_detection.py $imageName seq >&1)
+results[$resPos,4]=0
+results[$resPos,5]=NA
 
 echo "Running Python CUDA (Numba)"
 for t in ${threadCount[@]}; do
@@ -81,16 +81,7 @@ for t in ${threadCount[@]}; do
 done
 
 # blocks, threads, PixelsPerMSTotalTime, PixelsPerMSTotalTimeGPUTime, PixelsPerMSTimeDif
-
 for ((j=1;j<=resPos;j++)) do
     printf "${results[$j,1]}, ${results[$j,2]}, ${results[$j,3]}, ${results[$j,4]}, ${results[$j,5]}"
     echo
 done
-
-
-# # start=$SECONDS
-# # pixelCountPP=$($pythonCom py_cuda/line_detection.py $imageName par >&1)
-# # durationPP=$(printf %.10f $(( (10**10 * SECONDS - start) * 1000 ))e-10 >&1)
-# # results+=([$durationPP, $pixelCountPP])
-
-
