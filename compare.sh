@@ -48,6 +48,17 @@ echo "image file: $imageName, python: $pythonCom, results file: $resultsFile"
 # results[$resPos,4]=0
 # results[$resPos,5]=NA
 
+declare -A results
+resPos=1
+
+echo "Running C Sequential"
+nvcc cuda_c/line_detection.cu
+results[$resPos,1]=0
+results[$resPos,2]=0
+results[$resPos,3]=$(./a.out $imageName seq >&1)
+results[$resPos,4]=0
+results[$resPos,5]=NA
+
 echo "Running C CUDA"
 for t in ${threadCount[@]}; do
     for u in ${blockCount[@]}; do
