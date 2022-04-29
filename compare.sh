@@ -32,8 +32,8 @@ fi
 
 echo "image file: $imageName, python: $pythonCom, results file: $resultsFile"
 
-threadCount=(8 16 32 64 128)
-blockCount=(8 16 32 64 128)
+threadCount=(16 32)
+blockCount=(4 8 16 32 64)
 treadArrLength=${#threadCount[@]}
 blockArrLength=${#blockCount[@]}
 
