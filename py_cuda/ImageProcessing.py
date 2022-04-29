@@ -140,6 +140,7 @@ class ImageHandler (FileHandler):
 
         start2 = monotonic_ns()
         gpuLineDetect[blocks2d, threads2d](rows, cols, mask, h_in, h_out)
+        cuda.synchronize()
         end2 = monotonic_ns()
         
         outBuff = h_out.reshape([self.width, self.height])

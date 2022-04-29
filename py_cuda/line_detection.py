@@ -1,7 +1,8 @@
 import sys
 import ImageProcessing as imgProc
 
-NUM_THREADS = 8
+NUM_THREADS = 1
+NUM_BLOCKS = 1
 
 def createSaveNewImg(img, imgMode, imgSize, imgData, newImgFile):
     newImg = imgProc.ImageHandler(None, imgMode, imgSize)

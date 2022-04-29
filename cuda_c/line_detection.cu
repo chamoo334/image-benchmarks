@@ -8,8 +8,12 @@
 #include <unistd.h>
 #include "ImageProcessing.cuh"
 #ifndef NUM_THREADS
-#define NUM_THREADS		8
+#define NUM_THREADS		1
 #endif
+#ifndef NUM_BLOCKS
+#define NUM_BLOCKS		1
+#endif
+
 
 using namespace std;
 
@@ -28,6 +32,8 @@ int main(int argc, char *argv[])
     {
         errorExit(1);
     }
+
+    cout << NUM_THREADS << "  " << NUM_BLOCKS << endl;
 
     char *image_main = new char[strlen(argv[1]) + 1]();
     char *image_seq = new char[strlen(argv[1]) + strlen(SEQ)]();
@@ -69,7 +75,7 @@ int main(int argc, char *argv[])
         if (imgIsColor)
             errorExit(3);
         if (useGPU)
-            new_image->detectLines(1, NUM_THREADS);
+            new_image->detectLines(1, NUM_THREADS, NUM_BLOCKS);
         else
             new_image->detectLines(1);
 
