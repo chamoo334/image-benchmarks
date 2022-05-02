@@ -290,6 +290,8 @@ void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks
     long  gpuTime, totalTime;
     float pixelsPerMSTotal, pixelsPerMSGPU, pixelsDiff;
 
+    // TODO: check CUDA consrains - memory, threads,blocks
+
     // allocate & set memory & time operations
     start1 = steady_clock::now();
     cudaMalloc((void**)&d_mask, byte_size_mask);
@@ -300,14 +302,12 @@ void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks
 
     // gpuLinedetect and synchronize
     start2 = steady_clock::now();
-    //TODO: use 1d threads if over threads_2d is over 1024
     gpuLineDetect2D<<<blocks_2d, threads_2d>>>(pixelsPerThread, rows, cols, *size,d_mask, d_in_img, d_out_img);
-    // test2D<<<blocks_2d, threads_2d>>>(rows, cols, *size,d_mask, d_in_img, d_out_img);
 
     cudaDeviceSynchronize();
     end2 = steady_clock::now();
     cudaMemcpy((*outBuf), d_out_img, byte_size_img, cudaMemcpyDeviceToHost);
-    cout << "pixels per thread: "<< pixelsPerThread <<"  "<< +(*outBuf)[20000] << endl; // line detected: 18, standard: 143
+    // cout << "pixels per thread: "<< pixelsPerThread <<"  "<< +(*outBuf)[20000] << endl; // line detected: 18, standard: 143
 
     // free and reset
     cudaFree(d_mask);
@@ -323,7 +323,7 @@ void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks
     pixelsPerMSGPU = (*size / gpuTime);
     pixelsDiff = pixelsPerMSTotal - pixelsPerMSGPU;
 
-    // // // blocks, threads, totalTime, gpuTime, dif
+    // blocks, threads, totalTime, gpuTime, dif
     fprintf(stdout, "{%d,%d};{%d,%d};%.6f;%.6f;%.6f\n",blocks_2d.x, blocks_2d.y, threads_2d.x, threads_2d.y, pixelsPerMSTotal, pixelsPerMSGPU, pixelsDiff);
 }
 
@@ -343,48 +343,51 @@ long elapsedTime(steady_clock::time_point first, steady_clock::time_point last){
 
 __global__ void gpuLineDetect2D(int perThread, int rows, int cols, int size, int *mask, unsigned char *inImg, unsigned char *outImg)
 {
-    bool adjustCol;
+    bool adjustCol, adjustRow;
+    int elRow, elCol, colAdjustment, rowAdjustment;
 
-    int elRow = blockIdx.y * blockDim.y + threadIdx.y + 1;
-    int elCol = blockIdx.x * blockDim.x + threadIdx.x + 1;
-    threadIdx.x != 0 ? adjustCol = true : adjustCol = false; 
+    elRow = blockIdx.y * blockDim.y + threadIdx.y + 1;
+    elCol = blockIdx.x * blockDim.x + threadIdx.x + 1;
+    threadIdx.x != 0 ? adjustCol = true : adjustCol = false;
+    threadIdx.y != 0 ? adjustRow = true : adjustRow = false;
+
+    if (blockIdx.x != 0){
+        elRow += 1;
+        elCol += 1;
+    }
+
+    if (blockIdx.y != 0){
+        elRow += 1;
+        elCol += 1;
+    }
+
 
     for (int threadPos = 0; threadPos < perThread; threadPos++){
-        int adjustment;
-        adjustCol == 1 ? adjustment = threadPos + perThread : adjustment = threadPos;
-        int arrCol = elCol + adjustment;
+        adjustCol == 1 ? colAdjustment = threadPos + (threadIdx.x * perThread): colAdjustment = threadPos;
+        adjustRow == 1 ? rowAdjustment = 0 - threadIdx.y: rowAdjustment = 0;
 
-        if (elRow <= rows && arrCol <= cols){
-            // int sum = 0;
+        int arrCol = elCol + colAdjustment + rowAdjustment;
+        int compPos = elRow * rows + arrCol;
 
-            // for (int i = -1; i <= 1; i++)
-            // {
-            //     for (int j = -1; j <= 1; j++)
-            //     {
-            //         sum = sum + inImg[arrCol + i + (long)(elRow + j) * cols] * mask[(i + 1) * 3 + (j + 1)];
-            //     }
-            // }
+        if (compPos <= size){
+            int sum = 0;
 
-            // if (sum > 255)
-            //     sum = 255;
-            // if (sum < 0)
-            //     sum = 0;
+            for (int i = -1; i <= 1; i++)
+            {
+                for (int j = -1; j <= 1; j++)
+                {
+                    sum = sum + inImg[arrCol + i + (long)(elRow + j) * cols] * mask[(i + 1) * 3 + (j + 1)];
+                }
+            }
 
-            // outImg[arrCol + (long)elRow * cols] = sum;
-            outImg[arrCol + (long)elRow * cols] = inImg[arrCol + (long)elRow * cols];
+            if (sum > 255)
+                sum = 255;
+            if (sum < 0)
+                sum = 0;
+
+            outImg[compPos] = sum;
         }
 
-    }
-}
-
-__global__ void test2D(int rows, int cols, int size, int *mask, unsigned char *inImg, unsigned char *outImg){
-    int elRow = blockIdx.y * blockDim.y + threadIdx.y + 1;
-    int elCol = blockIdx.x * blockDim.x + threadIdx.x + 1;
-
-    if (elRow <= rows && elCol <= cols){
-        outImg[elCol + (long)elRow * cols] = elCol + (long)elRow * cols;
-    } else {
-        outImg[elCol + (long)elRow * cols] = -1 * (elCol + (long)elRow * cols);
     }
 }
 
