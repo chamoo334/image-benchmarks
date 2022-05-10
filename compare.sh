@@ -4,8 +4,8 @@
 
 export CUDA_HOME=/usr/lib/cuda
 
-threadCount=(2 )
-blockCount=(2)
+threadCount=(1)
+blockCount=(1)
 treadArrLength=${#threadCount[@]}
 blockArrLength=${#blockCount[@]}
 
@@ -40,49 +40,44 @@ fi
 
 echo "image file: $imageName, python: $pythonCom, results file: $resultsFile"
 
-# echo "Running C Sequential"
-# nvcc cuda_c/line_detection.cu
-# results[$resPos,1]=0
-# results[$resPos,2]=0
-# results[$resPos,3]=$(./a.out $imageName seq >&1)
-# results[$resPos,4]=0
-# results[$resPos,5]=NA
-
 declare -A results
 resPos=1
 
-echo "Running C Sequential"
+# echo "Running C Sequential"
 nvcc cuda_c/line_detection.cu
-results[$resPos,1]=0
-results[$resPos,2]=0
-results[$resPos,3]=$(./a.out $imageName seq >&1)
-results[$resPos,4]=0
-results[$resPos,5]=NA
+# results[$resPos,1]=NA
+# results[$resPos,2]=NA
+# results[$resPos,3]=NA
+# results[$resPos,4]=$(./a.out $imageName seq >&1)
+# results[$resPos,5]=NA
+# results[$resPos,6]=NA
 
 echo "Running C CUDA"
 for t in ${threadCount[@]}; do
-    for u in ${blockCount[@]}; do
+#     for u in ${blockCount[@]}; do
 
-    nvcc cuda_c/line_detection.cu -DNUM_THREADS=$t -DNUM_BLOCKS=$u
-    ./a.out $imageName par
-    # ((resPos+=1))
-    # tempPos=1
+    # nvcc cuda_c/line_detection.cu -DNUM_THREADS=$t -DNUM_BLOCKS=$u
+    nvcc cuda_c/line_detection.cu -DNUM_THREADS=$t
+#     ./a.out $imageName par
+    ((resPos+=1))
+    tempPos=1
   
-    # IFS=';' read -ra TEMP <<< "$(./a.out $imageName par >&1)"
-    # for i in "${TEMP[@]}"; do
-    #     results[$resPos,$tempPos]=$i
-    #     ((tempPos+=1))
-    # done
-  done
+    IFS=';' read -ra TEMP <<< "$(./a.out $imageName par >&1)"
+    for i in "${TEMP[@]}"; do
+        results[$resPos,$tempPos]=$i
+        ((tempPos+=1))
+    done
+#   done
 done
 
 # echo "Running Python Sequential"
 # ((resPos+=1))
-# results[$resPos,1]=0
-# results[$resPos,2]=0
-# results[$resPos,3]=$($pythonCom py_cuda/line_detection.py $imageName seq 0 >&1)
-# results[$resPos,4]=0
+# results[$resPos,1]=NA
+# results[$resPos,2]=NA
+# results[$resPos,3]=NA
+# results[$resPos,4]=$($pythonCom py_cuda/line_detection.py $imageName seq 0 >&1)
 # results[$resPos,5]=NA
+# results[$resPos,6]=NA
 
 # echo "Running Python CUDA (Numba)"
 # for t in ${threadCount[@]}; do
@@ -97,7 +92,7 @@ done
 # done
 
 # blocks, threads, PixelsPerMSTotalTime, PixelsPerMSTotalTimeGPUTime, PixelsPerMSTimeDif
-# for ((j=1;j<=resPos;j++)) do
-#     printf "${results[$j,1]}, ${results[$j,2]}, ${results[$j,3]}, ${results[$j,4]}, ${results[$j,5]}"
-#     echo
-# done
+for ((j=1;j<=resPos;j++)) do
+    printf "${results[$j,1]}, ${results[$j,2]}, ${results[$j,3]}, ${results[$j,4]}, ${results[$j,5]}, ${results[$j,6]}"
+    echo
+done

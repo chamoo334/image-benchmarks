@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
-// #include <string.h>
 #include <unistd.h>
 #include "ImageProcessing.cuh"
 #ifndef NUM_THREADS
@@ -32,8 +31,6 @@ int main(int argc, char *argv[])
     {
         errorExit(1);
     }
-
-    cout << NUM_THREADS << "  " << NUM_BLOCKS << endl;
 
     char *image_main = new char[strlen(argv[1]) + 1]();
     char *image_seq = new char[strlen(argv[1]) + strlen(SEQ)]();
@@ -80,7 +77,9 @@ int main(int argc, char *argv[])
             new_image->detectLines(1);
 
 
-        // new_image->writeImage();
+        new_image->writeImage();
+
+        // cout << "here" << endl;
 
         deleteEverything(2, imgInBuffer, imgOutBuffer);
     }

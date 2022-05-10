@@ -28,7 +28,7 @@ static const int WHITE = MAX_COLOR;
 static const int BLACK = MIN_COLOR;
 static const int RGB_COLS = 3;
 
-__global__ void gpuLineDetect2D(int perThread, int rows, int cols, int size, int *mask, unsigned char *inImg, unsigned char *outImg);
+__global__ void gpuLineDetect(int perThread, int perBlock, int rows, int cols, int size, int *mask, unsigned char *inImg, unsigned char *outImg);
 __global__ void test2D(int rows, int cols, int size, int *mask, unsigned char *inImg, unsigned char *outImg);
 long elapsedTime(steady_clock::time_point first, steady_clock::time_point last);
 
@@ -232,18 +232,36 @@ void ImageProcessing::detectLines(int option, int threads_1d = 0, int blocks_1d 
         float pixelsPerMS;
         *outBuf = new unsigned char[*size];
 
+        cout << (*size) << endl;
+
         start = steady_clock::now();
 
         for (int y = 1; y <= rows - 1; y++)
         {
-            for (int x = 1; x <= cols; x++)
+            for (int x = 1; x <= cols - 1; x++)
             {
                 sum = 0;
+                // cout << "Main: " << y << "," << x << " ==> " << x + (long)y * cols << endl;
+
+                // int print = -1;
+                // int test = x + (long)y * cols;
+                // if ((y == 1 && x == 1) ||(y == (rows - 1) && x == (cols - 1))){
+                //     cout << test << endl;
+                // } else if ((x + (long)y * cols) >= (*size)) {
+                //     cout << "Main: " << y << "," << x << " ==> " << x + (long)y * cols << endl;
+                //     print = 0;
+                // }
+                
                 for (int i = -1; i <= 1; i++)
                 {
                     for (int j = -1; j <= 1; j++)
                     {
-                        sum = sum + (*inBuf)[x + i + (long)(y + j) * cols] * (*mask)[i + 1][j + 1];
+                        if ((x + i + (long)(y + j) * cols) < (*size)){
+                            sum = sum + (*inBuf)[x + i + (long)(y + j) * cols] * (*mask)[i + 1][j + 1];
+                        } 
+                        // else {
+                        //     cout << x + i + (long)(y + j) * cols << " out of bounds" << endl;
+                        // }
                     }
                 }
                 if (sum > 255)
@@ -256,9 +274,12 @@ void ImageProcessing::detectLines(int option, int threads_1d = 0, int blocks_1d 
         }
 
         end = steady_clock::now();
-        totalTime = elapsedTime(start, end);
-        pixelsPerMS = (float)(*size / totalTime);
-        fprintf(stdout, "%.6f", pixelsPerMS);
+        // totalTime = elapsedTime(start, end);
+        // if (totalTime == 0) {
+        //     ++totalTime;
+        // }
+        // pixelsPerMS = (float)(*size / totalTime);
+        // fprintf(stdout, "%.6f", pixelsPerMS);
     }
 }
 
@@ -269,19 +290,17 @@ void ImageProcessing::detectLines(int option, int threads_1d = 0, int blocks_1d 
  ****************************************************************/
 void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks_1d)
 {
-    // TODO: finish profiling GPU and incorporate compute capanility specifics
-    // cudaDeviceProp prop;
-    // cudaGetDeviceProperties(&prop, 0);
-    // int major = prop.major;
-    // int minor = prop.minor;
-    // float version = major + (minor / 10.);
-    // int multiProcCount = prop.multiProcessorCount;
-
+    // TODO: switch to grid offset
     int rows = (*height);
     int cols = (*width);
-    dim3 threads_2d = dim3 (threads_1d, threads_1d);
-    dim3 blocks_2d = dim3 (blocks_1d, blocks_1d);
-    int pixelsPerThread = ceil(sqrt(*size / ((pow(threads_1d, 2)) * (pow(blocks_1d, 2)))));
+    dim3 threadsDim(threads_1d, 1, 1);
+    dim3 blocksDim(blocks_1d, 1, 1);
+    int tDimTotal = threadsDim.x * threadsDim.y * threadsDim.z;
+    int bDimToal = blocksDim.x * blocksDim.y * blocksDim.z;
+    int pixelsPerThread = ceil((double)(*size) / (double)(tDimTotal * bDimToal));
+    int pixelsPerBlock = pixelsPerThread * tDimTotal;
+    cout << *size + 1 << "/" << bDimToal * tDimTotal << " => " << pixelsPerThread << " per thread and " << pixelsPerBlock << " per block" << endl;
+
     int byte_size_img = sizeof(unsigned char*) * (*size);
     int byte_size_mask = sizeof(int*) * 9;
     int * d_mask;
@@ -289,8 +308,6 @@ void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks
     steady_clock::time_point start1, start2, end1, end2;
     long  gpuTime, totalTime;
     float pixelsPerMSTotal, pixelsPerMSGPU, pixelsDiff;
-
-    // TODO: check CUDA consrains - memory, threads,blocks
 
     // allocate & set memory & time operations
     start1 = steady_clock::now();
@@ -302,7 +319,8 @@ void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks
 
     // gpuLinedetect and synchronize
     start2 = steady_clock::now();
-    gpuLineDetect2D<<<blocks_2d, threads_2d>>>(pixelsPerThread, rows, cols, *size,d_mask, d_in_img, d_out_img);
+    // gpuLineDetect<<<blocksdDimsDim>>>(pixelsPerThread, rows, cols, *size,d_mask, d_in_img, d_out_img);
+    gpuLineDetect<<<blocksDim, threadsDim>>>(pixelsPerThread, pixelsPerBlock, rows, cols, *size,d_mask, d_in_img, d_out_img);
 
     cudaDeviceSynchronize();
     end2 = steady_clock::now();
@@ -323,8 +341,8 @@ void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks
     pixelsPerMSGPU = (*size / gpuTime);
     pixelsDiff = pixelsPerMSTotal - pixelsPerMSGPU;
 
-    // blocks, threads, totalTime, gpuTime, dif
-    fprintf(stdout, "{%d,%d};{%d,%d};%.6f;%.6f;%.6f\n",blocks_2d.x, blocks_2d.y, threads_2d.x, threads_2d.y, pixelsPerMSTotal, pixelsPerMSGPU, pixelsDiff);
+    // // blocks, threads, pixelsPerThread, totalTime, gpuTime, dif
+    // fprintf(stdout, "{%d,%d};{%d,%d};%d;%.6f;%.6f;%.6f\n",blocksdDimksdDimadsDim.x, threadsDim.y, pixelsPerThread,pixelsPerMSTotal, pixelsPerMSGPU, pixelsDiff);
 }
 
 ImageProcessing::~ImageProcessing()
@@ -332,6 +350,11 @@ ImageProcessing::~ImageProcessing()
     // DTOR
 }
 
+/***************************************************************
+ * elapsedTime
+ * Parameters: steady_clock::time_point first, steady_clock::time_point last
+ * Determine time elapsed between two parameters and returns the value in ms
+ ****************************************************************/
 long elapsedTime(steady_clock::time_point first, steady_clock::time_point last){
   
 //   steady_clock::duration time_span = last - first;
@@ -341,42 +364,33 @@ long elapsedTime(steady_clock::time_point first, steady_clock::time_point last){
   return ms2.count();
 }
 
-__global__ void gpuLineDetect2D(int perThread, int rows, int cols, int size, int *mask, unsigned char *inImg, unsigned char *outImg)
+/***************************************************************
+ * gpuLineDetect
+ * Parameters: int perThread, int rows, int cols, int size, 
+ *      int *mask, unsigned char *inImg, unsigned char *outImg
+ * Each thread accumalates edge points for pixels perThread
+ ****************************************************************/
+__global__ void gpuLineDetect(int perThread, int perBlock, int rows, int cols, int size, int *mask, unsigned char *inImg, unsigned char *outImg)
 {
-    bool adjustCol, adjustRow;
-    int elRow, elCol, colAdjustment, rowAdjustment;
-
-    elRow = blockIdx.y * blockDim.y + threadIdx.y + 1;
-    elCol = blockIdx.x * blockDim.x + threadIdx.x + 1;
-    threadIdx.x != 0 ? adjustCol = true : adjustCol = false;
-    threadIdx.y != 0 ? adjustRow = true : adjustRow = false;
-
-    if (blockIdx.x != 0){
-        elRow += 1;
-        elCol += 1;
-    }
-
-    if (blockIdx.y != 0){
-        elRow += 1;
-        elCol += 1;
-    }
+    int threadAdj = (threadIdx.x + threadIdx.y * blockDim.x) * perThread;
+    int blockAdj = (blockIdx.x + blockIdx.y) * perBlock;
+    int totalAdj = threadAdj + blockAdj;
+    int tCol = (totalAdj % cols) + 1;
+    int tRow = (floor((double) totalAdj / (double) cols)) + 1;
 
 
     for (int threadPos = 0; threadPos < perThread; threadPos++){
-        adjustCol == 1 ? colAdjustment = threadPos + (threadIdx.x * perThread): colAdjustment = threadPos;
-        adjustRow == 1 ? rowAdjustment = 0 - threadIdx.y: rowAdjustment = 0;
+        int tPCol = tCol + (threadPos % cols);
+        int tPRow = tRow + floor((double) threadPos / (double) cols);
 
-        int arrCol = elCol + colAdjustment + rowAdjustment;
-        int compPos = elRow * rows + arrCol;
-
-        if (compPos <= size){
+        if (tPCol < cols && tPRow < rows){
             int sum = 0;
 
             for (int i = -1; i <= 1; i++)
             {
                 for (int j = -1; j <= 1; j++)
                 {
-                    sum = sum + inImg[arrCol + i + (long)(elRow + j) * cols] * mask[(i + 1) * 3 + (j + 1)];
+                    sum = sum + inImg[tPCol + i + (long)(tPRow + j) * cols] * mask[(i + 1) * 3 + (j + 1)];
                 }
             }
 
@@ -384,10 +398,10 @@ __global__ void gpuLineDetect2D(int perThread, int rows, int cols, int size, int
                 sum = 255;
             if (sum < 0)
                 sum = 0;
+            
+            outImg[tPRow * cols + tPCol] = sum;
 
-            outImg[compPos] = sum;
         }
-
     }
 }
 
