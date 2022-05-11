@@ -29,7 +29,6 @@ static const int BLACK = MIN_COLOR;
 static const int RGB_COLS = 3;
 
 __global__ void gpuLineDetect(int perThread, int perBlock, int rows, int cols, int size, int *mask, unsigned char *inImg, unsigned char *outImg);
-__global__ void test2D(int rows, int cols, int size, int *mask, unsigned char *inImg, unsigned char *outImg);
 long elapsedTime(steady_clock::time_point first, steady_clock::time_point last);
 
 class ImageProcessing
@@ -58,6 +57,7 @@ public:
     mask_array *setMask(int option);
     void detectLines(int option, int threads_1d, int blocks_1d);
     void detectLinesPar(mask_array mask, int threads_1d, int blocks_1d);
+    void verifyLimitsAndRun(dim3 threadsDim, dim3 blocksDim, int maxThreads, int maxBlocks, mask_array mask);
 
     virtual ~ImageProcessing();
 
@@ -232,36 +232,18 @@ void ImageProcessing::detectLines(int option, int threads_1d = 0, int blocks_1d 
         float pixelsPerMS;
         *outBuf = new unsigned char[*size];
 
-        cout << (*size) << endl;
-
         start = steady_clock::now();
 
         for (int y = 1; y <= rows - 1; y++)
         {
-            for (int x = 1; x <= cols - 1; x++)
+            for (int x = 1; x <= cols; x++)
             {
                 sum = 0;
-                // cout << "Main: " << y << "," << x << " ==> " << x + (long)y * cols << endl;
-
-                // int print = -1;
-                // int test = x + (long)y * cols;
-                // if ((y == 1 && x == 1) ||(y == (rows - 1) && x == (cols - 1))){
-                //     cout << test << endl;
-                // } else if ((x + (long)y * cols) >= (*size)) {
-                //     cout << "Main: " << y << "," << x << " ==> " << x + (long)y * cols << endl;
-                //     print = 0;
-                // }
-                
                 for (int i = -1; i <= 1; i++)
                 {
                     for (int j = -1; j <= 1; j++)
                     {
-                        if ((x + i + (long)(y + j) * cols) < (*size)){
-                            sum = sum + (*inBuf)[x + i + (long)(y + j) * cols] * (*mask)[i + 1][j + 1];
-                        } 
-                        // else {
-                        //     cout << x + i + (long)(y + j) * cols << " out of bounds" << endl;
-                        // }
+                        sum = sum + (*inBuf)[x + i + (long)(y + j) * cols] * (*mask)[i + 1][j + 1];
                     }
                 }
                 if (sum > 255)
@@ -274,32 +256,62 @@ void ImageProcessing::detectLines(int option, int threads_1d = 0, int blocks_1d 
         }
 
         end = steady_clock::now();
-        // totalTime = elapsedTime(start, end);
-        // if (totalTime == 0) {
-        //     ++totalTime;
-        // }
-        // pixelsPerMS = (float)(*size / totalTime);
-        // fprintf(stdout, "%.6f", pixelsPerMS);
+        totalTime = elapsedTime(start, end);
+        pixelsPerMS = (float)(*size / totalTime);
+        fprintf(stdout, "%.6f", pixelsPerMS);
     }
 }
 
 /***************************************************************
  * detectLinesPar
- * Parameters: mask_array mask, int threads_1d
- * Prepares data required for line detection using GPU
+ * Parameters: mask_array mask, int threads_1d, int blocks_1D
+ * 
  ****************************************************************/
 void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks_1d)
 {
-    // TODO: switch to grid offset
-    int rows = (*height);
-    int cols = (*width);
+
+    // TODO: verify compute capability and set limits approrpiately
+    int maxThreadsPerBlock = 1024;
+    int maxBlocksPerGrid = 65535;
+
+    // TODO: consider/switch to grid offset to avoid predetermined perThread and perBlock
+    // int rows = (*height);
+    // int cols = (*width);
     dim3 threadsDim(threads_1d, 1, 1);
+    dim3 threadsDim2D(threads_1d, threads_1d, 1);
+    // dim3 threadsDim3D(threads_1d, threads_1d, threads_1d);
     dim3 blocksDim(blocks_1d, 1, 1);
+    dim3 blocksDim2D(blocks_1d, blocks_1d, 1);
+    // dim3 blocksDim3D(blocks_1d, blocks_1d, blocks_1d);
+
+    verifyLimitsAndRun(threadsDim, blocksDim, maxThreadsPerBlock, maxBlocksPerGrid, mask);
+    verifyLimitsAndRun(threadsDim2D, blocksDim2D, maxThreadsPerBlock, maxBlocksPerGrid, mask);
+}
+
+/***************************************************************
+ * verifyLimitsAndRun
+ * Parameters: dim3 threadsDim, dim3 blocksDim, int maxThreads, 
+ *             int maxBlocks, mask_array mask
+ * Verifies thread & block dimensions are within GPU's limits and 
+ * prepares data required for line detection using GPULineDetect
+ ****************************************************************/
+void ImageProcessing::verifyLimitsAndRun(dim3 threadsDim, dim3 blocksDim, int maxThreads, int maxBlocks, mask_array mask)
+{
     int tDimTotal = threadsDim.x * threadsDim.y * threadsDim.z;
-    int bDimToal = blocksDim.x * blocksDim.y * blocksDim.z;
-    int pixelsPerThread = ceil((double)(*size) / (double)(tDimTotal * bDimToal));
+    int bDimTotal = blocksDim.x * blocksDim.y * blocksDim.z;
+
+    if (tDimTotal > maxThreads){
+        fprintf(stdout, "{%d,%d,%d};{%d,%d,%d};%d;%d;%.d;%.d\n",blocksDim.x, blocksDim.y, blocksDim.z, threadsDim.x, threadsDim.y, threadsDim.z, -1, -1, -1, -1);
+        return;
+    } else if (bDimTotal > maxBlocks){
+        fprintf(stdout, "{%d,%d,%d};{%d,%d,%d};%d;%d;%.d;%.d\n",blocksDim.x, blocksDim.y, blocksDim.z, threadsDim.x, threadsDim.y, threadsDim.z, -2, -2, -2, -2);
+        return;
+    }
+
+    // fprintf(stdout, "{%d,%d,%d};{%d,%d,%d};%d;%d;%d;%d\n",blocksDim.x, blocksDim.y, blocksDim.z, threadsDim.x, threadsDim.y, threadsDim.z, 0, 0, 0, 0);
+
+    int pixelsPerThread = ceil((double)(*size) / (double)(tDimTotal * bDimTotal));
     int pixelsPerBlock = pixelsPerThread * tDimTotal;
-    cout << *size + 1 << "/" << bDimToal * tDimTotal << " => " << pixelsPerThread << " per thread and " << pixelsPerBlock << " per block" << endl;
 
     int byte_size_img = sizeof(unsigned char*) * (*size);
     int byte_size_mask = sizeof(int*) * 9;
@@ -307,7 +319,7 @@ void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks
     unsigned char *d_in_img, *d_out_img;
     steady_clock::time_point start1, start2, end1, end2;
     long  gpuTime, totalTime;
-    float pixelsPerMSTotal, pixelsPerMSGPU, pixelsDiff;
+    float pixelsPerMSTotal, pixelsPerMSGPU;
 
     // allocate & set memory & time operations
     start1 = steady_clock::now();
@@ -319,13 +331,13 @@ void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks
 
     // gpuLinedetect and synchronize
     start2 = steady_clock::now();
-    // gpuLineDetect<<<blocksdDimsDim>>>(pixelsPerThread, rows, cols, *size,d_mask, d_in_img, d_out_img);
-    gpuLineDetect<<<blocksDim, threadsDim>>>(pixelsPerThread, pixelsPerBlock, rows, cols, *size,d_mask, d_in_img, d_out_img);
+
+    gpuLineDetect<<<blocksDim, threadsDim>>>(pixelsPerThread, pixelsPerBlock, (*height), (*width), *size, d_mask, d_in_img, d_out_img);
+
 
     cudaDeviceSynchronize();
     end2 = steady_clock::now();
     cudaMemcpy((*outBuf), d_out_img, byte_size_img, cudaMemcpyDeviceToHost);
-    // cout << "pixels per thread: "<< pixelsPerThread <<"  "<< +(*outBuf)[20000] << endl; // line detected: 18, standard: 143
 
     // free and reset
     cudaFree(d_mask);
@@ -335,14 +347,14 @@ void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks
 
     end1 = steady_clock::now();
 
-    totalTime = elapsedTime(start1, end1);
+    elapsedTime(start1, end1) == 0 ? totalTime = 1 : totalTime = elapsedTime(start1, end1);
     elapsedTime(start2, end2) == 0 ? gpuTime = 1 : gpuTime = elapsedTime(start2, end2);
     pixelsPerMSTotal = (float)(*size / totalTime);
     pixelsPerMSGPU = (*size / gpuTime);
-    pixelsDiff = pixelsPerMSTotal - pixelsPerMSGPU;
 
-    // // blocks, threads, pixelsPerThread, totalTime, gpuTime, dif
-    // fprintf(stdout, "{%d,%d};{%d,%d};%d;%.6f;%.6f;%.6f\n",blocksdDimksdDimadsDim.x, threadsDim.y, pixelsPerThread,pixelsPerMSTotal, pixelsPerMSGPU, pixelsDiff);
+    // blocks, threads, pixelsPerThread, pixelsPerBlock, totalTime, gpuTime
+    fprintf(stdout, "{%d,%d,%d};{%d,%d,%d};%d;%d;%.6f;%.6f::",blocksDim.x, blocksDim.y, blocksDim.z, threadsDim.x, threadsDim.y, threadsDim.z, 
+    pixelsPerThread,pixelsPerBlock, pixelsPerMSTotal, pixelsPerMSGPU);
 }
 
 ImageProcessing::~ImageProcessing()
@@ -355,7 +367,8 @@ ImageProcessing::~ImageProcessing()
  * Parameters: steady_clock::time_point first, steady_clock::time_point last
  * Determine time elapsed between two parameters and returns the value in ms
  ****************************************************************/
-long elapsedTime(steady_clock::time_point first, steady_clock::time_point last){
+long elapsedTime(steady_clock::time_point first, steady_clock::time_point last)
+{
   
 //   steady_clock::duration time_span = last - first;
 //   milliseconds ms = duration_cast< milliseconds >(time_span);
@@ -363,6 +376,7 @@ long elapsedTime(steady_clock::time_point first, steady_clock::time_point last){
   milliseconds ms2 = duration_cast< milliseconds >(fs);
   return ms2.count();
 }
+
 
 /***************************************************************
  * gpuLineDetect

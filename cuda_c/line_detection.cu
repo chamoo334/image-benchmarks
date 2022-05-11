@@ -77,9 +77,7 @@ int main(int argc, char *argv[])
             new_image->detectLines(1);
 
 
-        new_image->writeImage();
-
-        // cout << "here" << endl;
+        // new_image->writeImage();
 
         deleteEverything(2, imgInBuffer, imgOutBuffer);
     }
