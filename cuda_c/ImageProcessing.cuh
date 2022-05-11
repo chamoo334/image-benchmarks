@@ -50,7 +50,7 @@ public:
         unsigned char **_inBuf,
         unsigned char **_outBuf);
 
-    void readImage();
+    int readImage();
     void readColorImage();
     void writeImage();
     void copyImageData(unsigned char *_srcBuf, unsigned char *_destBuf, int bufSize);
@@ -113,14 +113,13 @@ ImageProcessing::ImageProcessing(char *_inImgName, char *_outImgName, int *_heig
  * Opens inImageName and extracts width, height, bitdepth
  * from image header as well as image's color table and data.
  ****************************************************************/
-void ImageProcessing::readImage()
+int ImageProcessing::readImage()
 {
     FILE *streamIn = fopen(inImgName, "rb");
 
     if (streamIn == (FILE *)0)
     {
-        fprintf( stderr, "Unable to open image file\n" );
-        exit(0);
+        return 3;
     }
 
     for (int i = 0; i < BMP_HEADER_SIZE; i++)
@@ -139,8 +138,6 @@ void ImageProcessing::readImage()
         *isColor = false;
 
         *inBuf = (unsigned char *)malloc((*size));
-        *inBuf = new unsigned char[*size];
-
         *outBuf = (unsigned char *)malloc(sizeof(unsigned char*) * (*size));
 
         fread(*inBuf, sizeof(unsigned char), (*size), streamIn);
@@ -148,9 +145,11 @@ void ImageProcessing::readImage()
     else
     {
         *isColor = true;
+        return 4;
     }
 
     fclose(streamIn);
+    return 0;
 }
 
 /***************************************************************

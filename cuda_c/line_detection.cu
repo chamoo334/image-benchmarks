@@ -22,14 +22,14 @@ const char *PAR = "_par_c.";
 void createFileNames(char *src, char *i, char *i_seq, char *i_par);
 void deleteEverything(int count, ...);
 void freeEverything(int count, ...);
-void errorExit(int err);
+void errorExit(int err, char *a, char *b, char *c);
 void TimeOfDaySeed();
 
 int main(int argc, char *argv[])
 {
     if (argc < 3)
     {
-        errorExit(1);
+        errorExit(1, NULL, NULL, NULL);
     }
 
     char *image_main = new char[strlen(argv[1]) + 1]();
@@ -67,10 +67,11 @@ int main(int argc, char *argv[])
                                                          &imgInBuffer,
                                                          &imgOutBuffer);
 
-        new_image->readImage();
+        int readStatus = new_image->readImage();
 
-        if (imgIsColor)
-            errorExit(3);
+        if (readStatus != 0)
+            errorExit(readStatus, image_main, image_seq, image_par);
+            
         if (useGPU)
             new_image->detectLines(1, NUM_THREADS, NUM_BLOCKS);
         else
@@ -79,11 +80,11 @@ int main(int argc, char *argv[])
 
         // new_image->writeImage();
 
-        deleteEverything(2, imgInBuffer, imgOutBuffer);
+        freeEverything(2, imgInBuffer, imgOutBuffer);
     }
     else
     {
-        errorExit(2);
+        errorExit(2, image_main, image_seq, image_par);
     }
 
     deleteEverything(3, image_main, image_seq, image_par);
@@ -124,10 +125,9 @@ void deleteEverything(int count, ...)
 void freeEverything(int count, ...)
 {
     va_list list;
-    int j = 0;
     va_start(list, count);
 
-    for (j = 0; j < count; j++)
+    for (int j = 0; j < count; j++)
     {
         free(va_arg(list, char *));
     }
@@ -135,7 +135,7 @@ void freeEverything(int count, ...)
     va_end(list);
 }
 
-void errorExit(int err)
+void errorExit(int err, char *a, char *b, char *c)
 {
     switch (err)
     {
@@ -143,15 +143,20 @@ void errorExit(int err)
         fprintf( stderr, "Unable to continue due to missing image or results filename\n" );
         break;
     case 2:
-        fprintf( stderr, "Unable to open the requested image\n" );
+        fprintf( stderr, "Unable to access the requested image\n" );
         break;
     case 3:
+        fprintf( stderr, "Unable to open image file\n" );
+        break;
+    case 4:
         fprintf( stderr, "Unable to process RGB images\n" );
         break;
     default:
         fprintf( stderr, "An error occured\n" );
         break;
     }
+
+    deleteEverything(3, a, b, c);
 
     exit(0);
 }
