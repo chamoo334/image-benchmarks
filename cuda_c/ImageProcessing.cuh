@@ -284,6 +284,8 @@ void ImageProcessing::detectLinesPar(mask_array mask, int threads_1d, int blocks
     // dim3 blocksDim3D(blocks_1d, blocks_1d, blocks_1d);
 
     verifyLimitsAndRun(threadsDim, blocksDim, maxThreadsPerBlock, maxBlocksPerGrid, mask);
+    verifyLimitsAndRun(threadsDim2D, blocksDim, maxThreadsPerBlock, maxBlocksPerGrid, mask);
+    verifyLimitsAndRun(threadsDim, blocksDim2D, maxThreadsPerBlock, maxBlocksPerGrid, mask);
     verifyLimitsAndRun(threadsDim2D, blocksDim2D, maxThreadsPerBlock, maxBlocksPerGrid, mask);
 }
 
@@ -300,10 +302,10 @@ void ImageProcessing::verifyLimitsAndRun(dim3 threadsDim, dim3 blocksDim, int ma
     int bDimTotal = blocksDim.x * blocksDim.y * blocksDim.z;
 
     if (tDimTotal > maxThreads){
-        fprintf(stdout, "{%d,%d,%d};{%d,%d,%d};%d;%d;%.d;%.d\n",blocksDim.x, blocksDim.y, blocksDim.z, threadsDim.x, threadsDim.y, threadsDim.z, -1, -1, -1, -1);
+        fprintf(stderr, "{%d,%d,%d};{%d,%d,%d};%d;%d;%.d;%.d\n",blocksDim.x, blocksDim.y, blocksDim.z, threadsDim.x, threadsDim.y, threadsDim.z, -1, -1, -1, -1);
         return;
     } else if (bDimTotal > maxBlocks){
-        fprintf(stdout, "{%d,%d,%d};{%d,%d,%d};%d;%d;%.d;%.d\n",blocksDim.x, blocksDim.y, blocksDim.z, threadsDim.x, threadsDim.y, threadsDim.z, -2, -2, -2, -2);
+        fprintf(stderr, "{%d,%d,%d};{%d,%d,%d};%d;%d;%.d;%.d\n",blocksDim.x, blocksDim.y, blocksDim.z, threadsDim.x, threadsDim.y, threadsDim.z, -2, -2, -2, -2);
         return;
     }
 
@@ -350,10 +352,12 @@ void ImageProcessing::verifyLimitsAndRun(dim3 threadsDim, dim3 blocksDim, int ma
     elapsedTime(start2, end2) == 0 ? gpuTime = 1 : gpuTime = elapsedTime(start2, end2);
     pixelsPerMSTotal = (float)(*size / totalTime);
     pixelsPerMSGPU = (*size / gpuTime);
+    // float pixelDiff = (float) (*size / (totalTime - gpuTime));
+    long timeDiff = totalTime - gpuTime;
 
     // blocks, threads, pixelsPerThread, pixelsPerBlock, totalTime, gpuTime
-    fprintf(stdout, "{%d,%d,%d};{%d,%d,%d};%d;%d;%.6f;%.6f::",blocksDim.x, blocksDim.y, blocksDim.z, threadsDim.x, threadsDim.y, threadsDim.z, 
-    pixelsPerThread,pixelsPerBlock, pixelsPerMSTotal, pixelsPerMSGPU);
+    fprintf(stdout, "{%d,%d,%d};{%d,%d,%d};%d;%d;%ld;%.6f;%.6f::",blocksDim.x, blocksDim.y, blocksDim.z, threadsDim.x, threadsDim.y, threadsDim.z, 
+    pixelsPerThread,pixelsPerBlock, timeDiff, pixelsPerMSTotal, pixelsPerMSGPU);
 }
 
 ImageProcessing::~ImageProcessing()

@@ -4,6 +4,8 @@ __pycache__/
 
 *.so
 *.out
+errors.txt
+results.txt
 
 py_img/
 req_test/

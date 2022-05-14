@@ -23,11 +23,12 @@ def par_run(imgFile):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 5:
         print("missing argument")
 
     elif sys.argv[2] == "seq":
         seq_run(sys.argv[1])
     else:
         NUM_THREADS = int(sys.argv[3])
+        NUM_BLOCKS = int(sys.argv[4])
         par_run(sys.argv[1])
